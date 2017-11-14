@@ -39,7 +39,8 @@ class Grid:
         return self.grid[x][y]
 
     def slice(self, x1, y1, x2, y2):
-        return self.grid[x]
+        # TODO: this
+        pass
 
 
 class BinaryGrid(Grid):
