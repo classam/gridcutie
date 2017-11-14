@@ -34,6 +34,40 @@ def setRandom(array, xoro_random_states):
         array[x][y] = (xoroshiro128p_uniform_float32(xoro_random_states, x) * y % 1) > 0.5
 
 
+@cuda.jit
+def conway(array, newArray):
+    x, y = cuda.grid(2)
+    if x < array.shape[0] and y < array.shape[1]:
+        neighbors = 0
+        live = array[x][y]
+
+        if (x+1) < array.shape[0]:
+            if array[x+1][y]:
+                neighbors += 1
+        if (y+1) < array.shape[1]:
+            if array[x][y+1]:
+                neighbors += 1
+        if (x-1) >= 0:
+            if array[x-1][y]:
+                neighbors += 1
+        if (y-1) >= 0:
+            if array[x][y-1]:
+                neighbors += 1
+
+        if live:
+            if neighbors < 2:
+                newArray[x][y] = False
+            if neighbors == 2 or neighbors == 3:
+                newArray[x][y] = True
+            if neighbors > 3:
+                newArray[x][y] = False
+        else:
+            if neighbors == 3:
+                newArray[x][y] = True
+            else:
+                newArray[x][y] = False
+
+
 class Grid:
     def get(self, x, y):
         return self.grid[x][y]
@@ -59,9 +93,25 @@ class BinaryGrid(Grid):
         rng_states = create_xoroshiro128p_states(self.width, seed=seed)
         kernel(setRandom, self.grid)(self.grid, rng_states)
 
+    def samplePrint(self):
+        for i in range(0, 40):
+            for j in range(0, 40):
+                if self.get(i, j):
+                    print(".", end="")
+                else: print("X", end="")
+            print("")
+        print("-"*40)
 
 
-bg = BinaryGrid(1000, 1000)
+class ConwayGrid(BinaryGrid):
+
+    def step(self):
+        empty_grid = numba.cuda.device_array([self.width, self.height], dtype=bool)
+        kernel(conway, self.grid)(self.grid, empty_grid)
+        self.grid = empty_grid
+
+
+bg = ConwayGrid(1000, 1000)
 
 print(bg.get(5, 5))
 
@@ -70,9 +120,8 @@ bg.random(seed=time.time())
 stop = timeit.default_timer()
 print("Randomize: ", stop-start)
 
-for i in range(0, 40):
-    for j in range(0, 40):
-        if bg.get(i, j):
-            print(".", end="")
-        else: print("X", end="")
-    print("")
+bg.samplePrint()
+bg.step()
+bg.samplePrint()
+bg.step()
+bg.samplePrint()
